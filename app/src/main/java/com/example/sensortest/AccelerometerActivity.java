@@ -28,7 +28,7 @@ public class AccelerometerActivity extends AppCompatActivity implements SensorEv
     private boolean haveSensor = false;
     private float[] mLastAccelerometer = new float[3];
 
-    private static float LOWPASS_ALPHA = 0.1f;
+    private static float LOWPASS_ALPHA = 0.06f;
 
     private Vibrator haptic;
     private int screenWidth, screenHeight;
@@ -44,6 +44,7 @@ public class AccelerometerActivity extends AppCompatActivity implements SensorEv
         data_txt = (TextView) findViewById(R.id.data_txt);
         haptic = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
 
+        //Source: http://www.androidtutorialshub.com/how-to-get-width-and-height-android-screen-in-pixels/
         view = (ConstraintLayout) findViewById(R.id.accelerometer_view);
         Display display = getWindowManager().getDefaultDisplay();
         Point size = new Point();
@@ -59,13 +60,17 @@ public class AccelerometerActivity extends AppCompatActivity implements SensorEv
 
             data_txt.setText("X: " + mLastAccelerometer[0] + "\n" + "Y: " + mLastAccelerometer[1] + "\n" + "Z: " + mLastAccelerometer[2]);
 
-            pointer_img.setX(relativePos(mLastAccelerometer[0], screenWidth));
-            pointer_img.setY(relativePos(mLastAccelerometer[2], screenHeight));
+            pointer_img.setX(relativeX(mLastAccelerometer[0], screenWidth));
+            pointer_img.setY(relativeY(mLastAccelerometer[1], screenHeight));
         }
     }
 
-    private float relativePos(float pos, int to) {
+    private float relativeX(float pos, int to) {
         return to/2 - (to/20)*pos;
+    }
+
+    private float relativeY(float pos, int to) {
+        return (to/11)*pos;
     }
 
     @Override

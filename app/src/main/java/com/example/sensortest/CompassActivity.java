@@ -10,9 +10,8 @@ import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
-import android.hardware.SensorListener;
 import android.hardware.SensorManager;
-import android.media.MediaPlayer;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.VibrationEffect;
@@ -22,8 +21,8 @@ import android.util.Log;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import java.util.Arrays;
 import java.util.Locale;
-import java.util.concurrent.ExecutionException;
 
 public class CompassActivity extends AppCompatActivity implements SensorEventListener {
 
@@ -44,10 +43,11 @@ public class CompassActivity extends AppCompatActivity implements SensorEventLis
 
     private Vibrator haptic;
     private TextToSpeech speech;
-    private static String nativeNorth, nativeEast, nativeWest, nativeSouth;
+    private static String[] nativeDirections = new String[4];
+    private static String[] directions = {"North", "East", "South", "West"};
     private String spoken;
 
-    private static float LOWPASS_ALPHA = 0.70f;
+    private static float LOWPASS_ALPHA = 0.50f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,75 +55,80 @@ public class CompassActivity extends AppCompatActivity implements SensorEventLis
         setContentView(R.layout.activity_compass);
 
         mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
-        compass_img = (ImageView) findViewById(R.id.img_compass);
-        txt_compass = (TextView) findViewById(R.id.txt_compass);
+        compass_img = findViewById(R.id.img_compass);
+        txt_compass = findViewById(R.id.txt_compass);
         haptic = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-        compass_view = (ConstraintLayout) findViewById(R.id.compass_view);
+        compass_view = findViewById(R.id.compass_view);
 
-        try {
-            String langCode = Locale.getDefault().getLanguage();
-            nativeNorth = new TranslateAPI().execute("North", "en", langCode).get();
-            nativeEast = new TranslateAPI().execute("East", "en", langCode).get();
-            nativeWest = new TranslateAPI().execute("West", "en", langCode).get();
-            nativeSouth = new TranslateAPI().execute("South", "en", langCode).get();
-            spoken = "";
-        } catch (Exception e) {
-            e.printStackTrace();
+        String langCode = Locale.getDefault().getLanguage();
+        for (String direction : directions) {
+            new TranslateAPI().translate(direction, "en", langCode);
         }
+        spoken = "";
+    }
+
+    public void setNativeDirection(String pair) {
+        String[] data = pair.split(":");
+        int index = Arrays.asList(directions).indexOf(data[0]);
+        Log.d(data[0], data[1] + "  " + index);
+        nativeDirections[index] = data[1];
     }
 
     @Override
     public void onSensorChanged(SensorEvent event) {
         if (event.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
-            rMat = lowPass(event.values.clone(), rMat);
-            SensorManager.getRotationMatrixFromVector(rMat, rMat);
+            SensorManager.getRotationMatrixFromVector(rMat, event.values);
+            rMat = lowPass(rMat, rMat);
             mAzimuth = (int) (Math.toDegrees(SensorManager.getOrientation(rMat, orientation)[0]) + 360) % 360;
-        } else {
-            if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
-                mLastAccelerometer = lowPass(event.values.clone(), mLastAccelerometer);
-                mLastAccelerometerSet = true;
-            } else if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
-                mLastMagnetometer = lowPass(event.values.clone(), mLastMagnetometer);
-                mLastMagnetometerSet = true;
-            }
-            if (mLastAccelerometerSet && mLastMagnetometerSet) {
-                SensorManager.getRotationMatrix(rMat, null, mLastAccelerometer, mLastMagnetometer);
-                SensorManager.getOrientation(rMat, orientation);
-                mAzimuth = (int) (Math.toDegrees(SensorManager.getOrientation(rMat, orientation)[0]) + 360) % 360;
-            }
+        }
+
+        if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+            mLastAccelerometer = lowPass(event.values.clone(), mLastAccelerometer);
+            mLastAccelerometerSet = true;
+        } else if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
+            mLastMagnetometer = lowPass(event.values.clone(), mLastMagnetometer);
+            mLastMagnetometerSet = true;
+        }
+        if (mLastAccelerometerSet && mLastMagnetometerSet) {
+            SensorManager.getRotationMatrix(rMat, null, mLastAccelerometer, mLastMagnetometer);
+            SensorManager.getOrientation(rMat, orientation);
+            mAzimuth = (int) (Math.toDegrees(SensorManager.getOrientation(rMat, orientation)[0]) + 360) % 360;
         }
 
         mAzimuth = Math.round(mAzimuth);
         compass_img.setRotation(-mAzimuth);
 
         String where = "N";
-        if (mAzimuth >= 345 || mAzimuth <= 15) {
-            if (!north) {
-                north();
-            }
-        } else {
+        if (!(mAzimuth >= 350 || mAzimuth <= 10)) {
             notNorth();
         }
 
         if (mAzimuth >= 350 || mAzimuth <= 10) {
             where = "N";
+            if (!north) {
+                north();
+            }
         } else if (mAzimuth < 350 && mAzimuth > 280) {
             where = "NW";
+            spoken = "";
         } else if (mAzimuth <= 280 && mAzimuth > 260) {
             where = "W";
-            speakOnce(nativeWest);
+            speakOnce(nativeDirections[3]);
         } else if (mAzimuth <= 260 && mAzimuth > 190) {
             where = "SW";
+            spoken = "";
         } else if (mAzimuth <= 190 && mAzimuth > 170) {
             where = "S";
-            speakOnce(nativeSouth);
+            speakOnce(nativeDirections[2]);
         } else if (mAzimuth <= 170 && mAzimuth > 100) {
             where = "SE";
+            spoken = "";
         } else if (mAzimuth <= 100 && mAzimuth > 80) {
             where = "E";
-            speakOnce(nativeEast);
+            speakOnce(nativeDirections[1]);
         } else if (mAzimuth <= 80 && mAzimuth > 10) {
             where = "NE";
+            spoken = "";
         }
 
         txt_compass.setText(mAzimuth + "° " + where);
@@ -213,11 +218,11 @@ public class CompassActivity extends AppCompatActivity implements SensorEventLis
             haptic.vibrate(500);
         }
 
-        speakOnce(nativeNorth);
+        speakOnce(nativeDirections[0]);
     }
 
     private void speakOnce(String word) {
-        if (word != null && !spoken.equals(word)) {
+        if (word != null && spoken != null && !spoken.equals(word)) {
             speech.speak(word, TextToSpeech.QUEUE_FLUSH, null);
         }
         spoken = word;
@@ -239,4 +244,16 @@ public class CompassActivity extends AppCompatActivity implements SensorEventLis
         return output;
     }
 
+private class TranslateAPI extends HTTPcon {
+    private static final String API_KEY = "trnsl.1.1.20190406T161250Z.d535ecb82d0bb929.0fb2ded77d67b60b2911527e20f72e3fe3b1e994";
+
+    public void translate(String... params) {
+        String url = "https://translate.yandex.net/api/v1.5/tr.json/translate?key=" + API_KEY + "&text=" + params[0] + "&lang=" + params[1] + "-" + params[2] + "&format=plain";
+        super.execute(params[0], url);
+    }
+
+    public void callback(String result) {
+        setNativeDirection(result);
+    }
+}
 }
