@@ -60,5 +60,5 @@ public abstract class HTTPcon extends AsyncTask<String, Void, String> {
         callback(result);
     }
 
-    public abstract void callback(String result);
+    protected abstract void callback(String result);
 }

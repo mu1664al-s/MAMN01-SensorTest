@@ -12,7 +12,7 @@
         <activity android:name=".CompassActivity"
             android:screenOrientation="portrait"></activity>
         <activity android:name=".AccelerometerActivity"
-            android:screenOrientation="portrait"/>
+            android:screenOrientation="landscape"/>
         <activity android:name=".MainActivity"
             android:screenOrientation="portrait">
             <intent-filter>

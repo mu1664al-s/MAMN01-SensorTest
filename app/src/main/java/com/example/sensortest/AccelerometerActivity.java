@@ -11,10 +11,13 @@ package com.example.sensortest;
         import android.hardware.SensorEvent;
         import android.hardware.SensorEventListener;
         import android.hardware.SensorManager;
+        import android.os.Build;
         import android.os.Bundle;
+        import android.os.VibrationEffect;
         import android.os.Vibrator;
         import android.view.Display;
         import android.widget.ImageView;
+        import android.widget.Switch;
         import android.widget.TextView;
 
         import java.lang.reflect.Array;
@@ -28,11 +31,16 @@ public class AccelerometerActivity extends AppCompatActivity implements SensorEv
     private boolean haveSensor = false;
     private float[] mLastAccelerometer = new float[3];
 
-    private static float LOWPASS_ALPHA = 0.06f;
+    private static float LOWPASS_ALPHA = 0.1f;
 
     private Vibrator haptic;
-    private int screenWidth, screenHeight;
+    private int pointerHeight, screenWidth;
     private ConstraintLayout view;
+    private TextView angle_txt;
+    private boolean balanced;
+
+    private Switch vibrationSwitch;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,17 +48,24 @@ public class AccelerometerActivity extends AppCompatActivity implements SensorEv
         setContentView(R.layout.activity_accelerometer);
 
         mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
-        pointer_img = (ImageView) findViewById(R.id.pointer_img);
-        data_txt = (TextView) findViewById(R.id.data_txt);
+        pointer_img = findViewById(R.id.pointer_img);
+        data_txt = findViewById(R.id.data_txt);
+        angle_txt = findViewById(R.id.angle_txt);
         haptic = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
 
-        //Source: http://www.androidtutorialshub.com/how-to-get-width-and-height-android-screen-in-pixels/
-        view = (ConstraintLayout) findViewById(R.id.accelerometer_view);
-        Display display = getWindowManager().getDefaultDisplay();
-        Point size = new Point();
-        display.getSize(size);
-        screenWidth = size.x;
-        screenHeight = size.y;
+        vibrationSwitch = findViewById(R.id.vibration_switch);
+
+        view = findViewById(R.id.accelerometer_view);
+        //Source: https://stackoverflow.com/questions/39660918/android-constraintlayout-getwidth-return-0
+        //Source: https://stackoverflow.com/questions/13840007/what-exactly-does-the-post-method-do
+        pointer_img.post(new Runnable() {
+            @Override
+            public void run() {
+                //height is ready
+                pointerHeight = pointer_img.getHeight();
+                screenWidth = view.getWidth();
+            }
+        });
     }
 
     @Override
@@ -60,17 +75,42 @@ public class AccelerometerActivity extends AppCompatActivity implements SensorEv
 
             data_txt.setText("X: " + mLastAccelerometer[0] + "\n" + "Y: " + mLastAccelerometer[1] + "\n" + "Z: " + mLastAccelerometer[2]);
 
-            pointer_img.setX(relativeX(mLastAccelerometer[0], screenWidth));
-            pointer_img.setY(relativeY(mLastAccelerometer[1], screenHeight));
+            double alphaYZ = relativeALPHA_YZ(mLastAccelerometer[1], mLastAccelerometer[2]);
+            pointer_img.setX(relativeY(alphaYZ, screenWidth));
+
+            long angle = Math.round(Math.toDegrees(alphaYZ));
+
+            angle_txt.setText(Math.round(Math.toDegrees(alphaYZ)) + "°");
+
+            if (angle == 0L) {
+                if (!balanced) {
+                    pointer_img.setImageResource(R.drawable.balance);
+                    if (vibrationSwitch.isChecked()) {
+                        // source: https://stackoverflow.com/questions/13950338/how-to-make-an-android-device-vibrate
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            haptic.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE));
+                        } else {
+                            //deprecated in API 26
+                            haptic.vibrate(500);
+                        }
+                    }
+
+                    balanced = true;
+                }
+            } else {
+                pointer_img.setImageResource(R.drawable.of_balance);
+                balanced = false;
+            }
         }
     }
 
-    private float relativeX(float pos, int to) {
-        return to/2 - (to/20)*pos;
+    private double relativeALPHA_YZ(float posY, float posZ) {
+        double alpha = Math.atan((posY)/(posZ));
+        return ((posY < 0) ? alpha : alpha);
     }
 
-    private float relativeY(float pos, int to) {
-        return (to/11)*pos;
+    private float relativeY(double alpha, int to) {
+        return (float) (to/2 + Math.sin(alpha)*to/2) - pointerHeight/2;
     }
 
     @Override

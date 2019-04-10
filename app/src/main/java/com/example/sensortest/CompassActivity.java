@@ -19,6 +19,7 @@ import android.os.Vibrator;
 import android.speech.tts.TextToSpeech;
 import android.util.Log;
 import android.widget.ImageView;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import java.util.Arrays;
@@ -47,7 +48,7 @@ public class CompassActivity extends AppCompatActivity implements SensorEventLis
     private static String[] directions = {"North", "East", "South", "West"};
     private String spoken;
 
-    private static float LOWPASS_ALPHA = 0.50f;
+    private Switch soundSwitch, vibrationSwitch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,6 +60,9 @@ public class CompassActivity extends AppCompatActivity implements SensorEventLis
         txt_compass = findViewById(R.id.txt_compass);
         haptic = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         compass_view = findViewById(R.id.compass_view);
+
+        soundSwitch = findViewById(R.id.sound_switch);
+        vibrationSwitch = findViewById(R.id.vibration_switch);
 
         String langCode = Locale.getDefault().getLanguage();
         for (String direction : directions) {
@@ -78,20 +82,21 @@ public class CompassActivity extends AppCompatActivity implements SensorEventLis
     public void onSensorChanged(SensorEvent event) {
         if (event.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
             SensorManager.getRotationMatrixFromVector(rMat, event.values);
-            rMat = lowPass(rMat, rMat);
+            rMat = lowPass(rMat, rMat, 0.4f);
             mAzimuth = (int) (Math.toDegrees(SensorManager.getOrientation(rMat, orientation)[0]) + 360) % 360;
         }
 
         if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
-            mLastAccelerometer = lowPass(event.values.clone(), mLastAccelerometer);
+            mLastAccelerometer = lowPass(event.values.clone(), mLastAccelerometer, 0.08f);
             mLastAccelerometerSet = true;
         } else if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
-            mLastMagnetometer = lowPass(event.values.clone(), mLastMagnetometer);
+            mLastMagnetometer = lowPass(event.values.clone(), mLastMagnetometer, 0.18f);
             mLastMagnetometerSet = true;
         }
         if (mLastAccelerometerSet && mLastMagnetometerSet) {
             SensorManager.getRotationMatrix(rMat, null, mLastAccelerometer, mLastMagnetometer);
-            SensorManager.getOrientation(rMat, orientation);
+            //SensorManager.getOrientation(rMat, orientation);
+            rMat = lowPass(rMat, rMat, 0.2f);
             mAzimuth = (int) (Math.toDegrees(SensorManager.getOrientation(rMat, orientation)[0]) + 360) % 360;
         }
 
@@ -210,19 +215,25 @@ public class CompassActivity extends AppCompatActivity implements SensorEventLis
         compass_img.setImageResource(R.drawable.north);
         compass_view.setBackgroundColor(Color.BLACK);
         txt_compass.setTextColor(Color.WHITE);
-        // source: https://stackoverflow.com/questions/13950338/how-to-make-an-android-device-vibrate
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            haptic.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE));
-        } else {
-            //deprecated in API 26
-            haptic.vibrate(500);
-        }
+        soundSwitch.setTextColor(Color.WHITE);
+        vibrationSwitch.setTextColor(Color.WHITE);
 
-        speakOnce(nativeDirections[0]);
+        if (vibrationSwitch.isChecked()) {
+            // source: https://stackoverflow.com/questions/13950338/how-to-make-an-android-device-vibrate
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                haptic.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                //deprecated in API 26
+                haptic.vibrate(500);
+            }
+        }
+        if (soundSwitch.isChecked()) {
+            speakOnce(nativeDirections[0]);
+        }
     }
 
     private void speakOnce(String word) {
-        if (word != null && spoken != null && !spoken.equals(word)) {
+        if (word != null && spoken != null && !spoken.equals(word) && soundSwitch.isChecked()) {
             speech.speak(word, TextToSpeech.QUEUE_FLUSH, null);
         }
         spoken = word;
@@ -232,14 +243,16 @@ public class CompassActivity extends AppCompatActivity implements SensorEventLis
         north = false;
         compass_view.setBackgroundColor(Color.WHITE);
         txt_compass.setTextColor(Color.GRAY);
+        soundSwitch.setTextColor(Color.GRAY);
+        vibrationSwitch.setTextColor(Color.GRAY);
         compass_img.setImageResource(R.drawable.not_north);
     }
 
     //Source: https://www.built.io/blog/applying-low-pass-filter-to-android-sensor-s-readings
-    protected float[] lowPass( float[] input, float[] output ) {
+    private float[] lowPass( float[] input, float[] output, float alpha ) {
         if ( output == null ) return input;
         for ( int i=0; i<input.length; i++ ) {
-            output[i] = output[i] + LOWPASS_ALPHA * (input[i] - output[i]);
+            output[i] = output[i] + alpha * (input[i] - output[i]);
         }
         return output;
     }
@@ -252,7 +265,7 @@ private class TranslateAPI extends HTTPcon {
         super.execute(params[0], url);
     }
 
-    public void callback(String result) {
+    protected void callback(String result) {
         setNativeDirection(result);
     }
 }
