@@ -1,5 +1,5 @@
 # MAMN01-SensorTest
 
-##Compass
+## Compass
 
-##Accelerometer
+## Accelerometer
