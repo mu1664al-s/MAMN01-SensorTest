@@ -148,6 +148,7 @@
         android:layout_marginBottom="8dp"
         android:checked="true"
         android:text="Vibration"
+        android:textColor="#808080"
         android:textSize="18sp"
         app:layout_constraintBottom_toTopOf="@+id/linearLayout4"
         app:layout_constraintEnd_toEndOf="parent"
