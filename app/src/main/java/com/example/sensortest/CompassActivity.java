@@ -84,20 +84,21 @@ public class CompassActivity extends AppCompatActivity implements SensorEventLis
             SensorManager.getRotationMatrixFromVector(rMat, event.values);
             rMat = lowPass(rMat, rMat, 0.4f);
             mAzimuth = (int) (Math.toDegrees(SensorManager.getOrientation(rMat, orientation)[0]) + 360) % 360;
-        }
+        } else {
 
-        if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
-            mLastAccelerometer = lowPass(event.values.clone(), mLastAccelerometer, 0.08f);
-            mLastAccelerometerSet = true;
-        } else if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
-            mLastMagnetometer = lowPass(event.values.clone(), mLastMagnetometer, 0.18f);
-            mLastMagnetometerSet = true;
-        }
-        if (mLastAccelerometerSet && mLastMagnetometerSet) {
-            SensorManager.getRotationMatrix(rMat, null, mLastAccelerometer, mLastMagnetometer);
-            //SensorManager.getOrientation(rMat, orientation);
-            rMat = lowPass(rMat, rMat, 0.2f);
-            mAzimuth = (int) (Math.toDegrees(SensorManager.getOrientation(rMat, orientation)[0]) + 360) % 360;
+            if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+                mLastAccelerometer = lowPass(event.values.clone(), mLastAccelerometer, 0.08f);
+                mLastAccelerometerSet = true;
+            } else if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
+                mLastMagnetometer = lowPass(event.values.clone(), mLastMagnetometer, 0.18f);
+                mLastMagnetometerSet = true;
+            }
+            if (mLastAccelerometerSet && mLastMagnetometerSet) {
+                SensorManager.getRotationMatrix(rMat, null, mLastAccelerometer, mLastMagnetometer);
+                //SensorManager.getOrientation(rMat, orientation);
+                rMat = lowPass(rMat, rMat, 0.2f);
+                mAzimuth = (int) (Math.toDegrees(SensorManager.getOrientation(rMat, orientation)[0]) + 360) % 360;
+            }
         }
 
         mAzimuth = Math.round(mAzimuth);
